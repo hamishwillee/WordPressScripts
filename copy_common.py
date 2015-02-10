@@ -63,7 +63,9 @@ for title in posts.keys():
         #print("Destination is newer for %s" % title)
         continue
 
-    print("Fetching %s" % title)
+    etitle = title.encode('ascii', 'replace')
+
+    print("Fetching %s" % etitle)
     post = src_server.wp.getPost(opts.blog_id, opts.username, opts.password, posts[title]['post_id'])
 
     new_post = {}
@@ -78,11 +80,11 @@ for title in posts.keys():
     new_post['post_author'] = 'autotest'
     new_post['post_content'] = new_post['post_content'].replace('[common_page]', '')
     new_post['post_content'] = new_post['post_content'].replace('[common_page_mp]', '')
-    print("Adding common_page")
-    if opts.url_src.find('planner') != -1:
-        new_post['post_content'] = '[common_page_mp]\n\n' + new_post['post_content']
-    else:
-        new_post['post_content'] = '[common_page]\n\n' + new_post['post_content']
+    #print("Adding common_page")
+    #if opts.url_src.find('planner') != -1:
+    #    new_post['post_content'] = '[common_page_mp]\n\n' + new_post['post_content']
+    #else:
+    #    new_post['post_content'] = '[common_page]\n\n' + new_post['post_content']
 
     if title in dst_posts:
         dst_post = dst_server.wp.getPost(opts.blog_id, opts.username, opts.password, dst_posts[title]['post_id'])
@@ -91,15 +93,15 @@ for title in posts.keys():
             print("Destination is newer")
             continue
 
-        print("Uploading %s" % title)
+        print("Uploading %s" % etitle)
         if not dst_server.wp.editPost(opts.blog_id, opts.username, opts.password, dst_posts[title]['post_id'], new_post):
-            print("Failed to update %s" % title)
+            print("Failed to update %s" % etitle)
             exit_code = 1
     else:
-        print("Uploading %s" % title)
+        print("Uploading %s" % etitle)
 
         if not dst_server.wp.newPost(opts.blog_id, opts.username, opts.password, new_post):
-            print("Failed to upload %s" % title)
+            print("Failed to upload %s" % etitle)
             exit_code = 1
 
 sys.exit(exit_code)
