@@ -4,6 +4,8 @@ copy common-* pages from one site to another
 '''
 
 import datetime, xmlrpclib, sys, tempfile
+from datetime import datetime
+
 
 from optparse import OptionParser
 parser = OptionParser("copy_common.py [options]")
@@ -77,7 +79,21 @@ new_keys = ['post_mime_type', 'post_date_gmt', 'sticky', 'post_date',
 
 for slug in posts.keys():
     if slug in dst_posts and posts[slug]['post_modified'] <= dst_posts[slug]['post_modified'] and not opts.force:
-        print("Destination is newer for %s" % slug)
+        src_date = datetime.strptime('%s' % posts[slug]['post_modified'], "%Y%m%dT%H:%M:%S")
+        dst_date = datetime.strptime('%s' %dst_posts[slug]['post_modified'], "%Y%m%dT%H:%M:%S")
+        timedelta = dst_date - src_date
+        timemins = timedelta.total_seconds() / 60
+        #print 'src_date_orig: %s' % posts[slug]['post_modified']
+        #print 'dst_date_orig: %s' % dst_posts[slug]['post_modified']
+        #print 'src_date: %s' % src_date
+        #print 'dst_date: %s' % dst_date
+        #print 'timedelta: %s' % timedelta
+        #print 'timemins: %s' % timemins
+        #print 'repr %s' % repr(timedelta)
+
+
+        if timemins > 20:
+            print("Destination is newer for (%s): %s by %s" % (opts.url_dst, slug, timemins) )
         continue
 
     print("Fetching %s" % posts[slug]['post_title'])
