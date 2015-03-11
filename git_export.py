@@ -20,6 +20,7 @@ parser.add_option("-p","--password", help="Wordpress password", default=None)
 parser.add_option("--git_user", help="Git user id", default=None)
 parser.add_option("--git_password", help="Git password", default=None)
 parser.add_option("--target_dir", help="Directory to store data", default="/data/hamish/deleteme/")
+parser.add_option("--blog-id", help="ID of wiki", default='')
 #parser.add_option("--slug-prefix", help="slug prefix to look for (editable part of url)", default="common-")
 #parser.add_option("--blog-id", help="ID of wiki", default='')
 #parser.add_option("--force", action='store_true', help="force update", default=False)
@@ -28,6 +29,11 @@ parser.add_option("--target_dir", help="Directory to store data", default="/data
 
 #Make the target (root) directory on host computer - for containing git tree
 
+print 'WP Username: %s' % opts.username
+print 'WP Password: %s' % opts.password
+print 'Git Username: %s' % opts.git_user
+print 'Git Password: %s' % opts.git_password
+print 'Target Git directory (on local PC): %s' % opts.target_dir
 
 if opts.username is None or opts.password is None:
     print("You must supply a username and password for Wordpress")
@@ -81,9 +87,18 @@ def process_all_servers(servers):
             sys.exit(1)
 
 
-
+        #process all of the files
+        for slug in posts_by_slug:
+            print 'writing file: %s' % slug
+            filename=opts.target_dir + a_server + '/'+slug+'.html'
+            target_file = open (filename, 'w') ## a will append, w will over-write 
+            target_file.write(posts_by_slug[slug])
+            target_file.close()
+            sys.exit(1)
+            
+            
         # Create each file
-
+        
     
 
         print 'Server: %s' % a_server
@@ -91,9 +106,9 @@ def process_all_servers(servers):
 
 
 setup_target_directories(server_list)
-sys.exit(1)
-process_all_servers(server_list)
 
+process_all_servers(server_list)
+sys.exit(1)
 exit_code = 0
 
 sys.exit(exit_code)  #Debug
