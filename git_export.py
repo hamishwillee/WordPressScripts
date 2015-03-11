@@ -49,6 +49,13 @@ def setup_target_directories(servers):
     if not os.path.exists(opts.target_dir):
         print 'Create root directory: %s' % opts.target_dir
         os.makedirs(opts.target_dir)
+
+    # Create directory for common files (from planner.ardupilot.com)
+    commondir= opts.target_dir+'common.ardupilot.com/'
+    if not os.path.exists(commondir):
+        print 'Create common directory: %s' % commondir
+        os.makedirs(commondir)
+
     #Create each of the server directories
     for a_server in servers:
         server_dir=opts.target_dir + a_server + '/'
@@ -64,22 +71,56 @@ def find_posts_by_server(server):
     '''find the source posts'''
     posts = src_server.wp.getPosts(opts.blog_id, opts.username, opts.password,
                                { 'post_type' : 'wiki', 'number' : 1000000 },
-                               [ 'post_title', 'post_id', 'post_modified','post_name' ])
+                               [ 'post_title', 'post_id', 'post_modified','post_name','post_content','post_status','menu_order','post_parent' ])
 
 
     ret = {}
-    allpost_id_title_name = {}
-    allpost_slug_id_title = {}
+    parentmap={}
     for p in posts:
-        #get matching posts
-        if p['post_name'].startswith(slug_prefix):
-            ret[p['post_name']] = { 'post_id' : p['post_id'], 'post_modified' : p['post_modified'], 'post_title' : p['post_title'] }
+        #store value if it is published. Only store "common" pages for planner wiki.
+        if 'publish' == p['post_status']:
+            parentmap[p['post_id']] = { 'post_name': p['post_name'], 'post_title':p['post_title'] }
+            if not p['post_name'].startswith('common-'):
+                ret[p['post_name']] = { 'post_id' : p['post_id'], 'post_modified' : p['post_modified'], 'post_title' : p['post_title'], 'post_name' : p['post_name'], 'post_content':p['post_content'],
+                'menu_order':p['menu_order'],'post_parent':p['post_parent'] }
+            else:
+                if server.startswith('planner.'):
+                    ret[p['post_name']] = { 'post_id' : p['post_id'], 'post_modified' : p['post_modified'], 'post_title' : p['post_title'], 'post_name' : p['post_name'], 'post_content':p['post_content'],'menu_order':p['menu_order'],'post_parent':p['post_parent'] }   
+    
+    #Get the stub and title of the parent
+    for stub in ret:
+        parentid=ret[stub]['post_parent']
+        if parentid in parentmap:
+            ret[stub]['post_parent_stub']=parentmap[parentid]['post_name']
+            ret[stub]['post_parent_title']=parentmap[parentid]['post_title']
+        else:
+            ret[stub]['post_parent_stub']=''
+            ret[stub]['post_parent_title']=''
+
 
     return ret
 
 
+def export_post_metadata(page):
+    metadata='<!-- \nSTART METADATA - Only title should be translated \n'
+    #print page
+    metadata=metadata+'slug: %s \n' % page['post_name']
+    metadata=metadata+'title: %s \n' % page['post_title']
+    metadata=metadata+'id: %s \n' % page['post_id']
+    metadata=metadata+'menu_order: %s \n' % page['menu_order']
+    metadata=metadata+'post_parent_id: %s \n' % page['post_parent']
+    metadata=metadata+'post_parent_stub: %s \n' % page['post_parent_stub']
+    metadata=metadata+'post_parent_title: %s \n' % page['post_parent_title']
+    metadata=metadata+'END METADATA \n-->\n'
+
+    return metadata
+    
+
+
+
 def process_all_servers(servers):
     for a_server in servers:
+	print 'Getting server: %s' % a_server
         posts_by_slug = find_posts_by_server(a_server)
 
         if not posts_by_slug:
@@ -89,27 +130,25 @@ def process_all_servers(servers):
 
         #process all of the files
         for slug in posts_by_slug:
+            metadata=export_post_metadata(posts_by_slug[slug])
             print 'writing file: %s' % slug
-            filename=opts.target_dir + a_server + '/'+slug+'.html'
-            target_file = open (filename, 'w') ## a will append, w will over-write 
-            target_file.write(posts_by_slug[slug])
+            if posts_by_slug[slug]['post_name'].startswith('common-'):
+                filename=opts.target_dir + 'common.ardupilot.com' + '/'+slug+'.html'
+            else:
+                filename=opts.target_dir + a_server + '/'+slug+'.html'
+            print 'filename: %s' % filename
+            target_file = open (filename, 'w') ## a will append, w will over-write
+            target_file.write(metadata.encode('utf8'))
+            target_file.write(posts_by_slug[slug]['post_content'].encode('utf8'))
             target_file.close()
-            sys.exit(1)
+            #sys.exit(1)
             
             
-        # Create each file
-        
-    
-
-        print 'Server: %s' % a_server
-        print len(posts_by_slug)
 
 
 setup_target_directories(server_list)
-
 process_all_servers(server_list)
-sys.exit(1)
-exit_code = 0
 
+exit_code = 0
 sys.exit(exit_code)  #Debug
 
