@@ -11,12 +11,12 @@ copyit() {
     dst="$1"
     $current_dir/ardupilot_heartbeat_test.py $(cat $HOME/WP_Auth/rover.auth) || {
         #fail
-	apache_service_status=$(wget -qO- http://ardupilot.com/server-status)
-        echo $apache_service_status
         sudo service apache2 restart
         sudo service varnish restart
-	echo $apache_service_status | mail -s "Heartbeat failed on ardupilot - restarting" hamish@3drobotics.com #andrew-3dr@tridgell.net,
+	echo $(cat "$current_dir/last_status.html") | mail -s "Heartbeat failed on ardupilot - restarting" hamish@3drobotics.com #andrew-3dr@tridgell.net,
     }
+    apache_service_status=$(wget -qO- http://ardupilot.com/server-status)
+    echo $apache_service_status > $current_dir/last_status.html
 }
 
 (
