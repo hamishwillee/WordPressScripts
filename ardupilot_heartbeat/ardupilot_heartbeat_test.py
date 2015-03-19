@@ -26,10 +26,12 @@ src_server.accept_gzip_encoding = False
 
 def read_server(server):
     '''find the source posts'''
-    posts = server.wp.getPosts(opts.blog_id, opts.username, opts.password,
+    try:
+        posts = server.wp.getPosts(opts.blog_id, opts.username, opts.password,
                                { 'post_type' : 'wiki', 'number' : 1 },
                                [ 'post_name' ])
-
+    except:
+        sys.exit(1)
 
 
 read_server(src_server)
