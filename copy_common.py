@@ -1,11 +1,16 @@
 #!/usr/bin/env python
 '''
 copy common-* pages from one site to another
+
+Copying will fail 
+* (with announcement) if the target version is newer - but you can force the copy to happen anyway with the --force parameter.
+* (silently) if the source has the [copywiki] shortcode and the target wiki is not in its desination field. The copy will not work 
+  even if -force is True, but will emit a reason for failure.
 '''
 
 import datetime, xmlrpclib, sys, tempfile
 from datetime import datetime
-
+import re #To determine if there are copy parameters in the source file
 
 from optparse import OptionParser
 parser = OptionParser("copy_common.py [options]")
@@ -96,7 +101,7 @@ for slug in posts.keys():
 
         if timemins > 20:
             print("Destination is newer for (%s): %s by %s" % (opts.url_dst, slug, timemins) )
-        continue
+            continue
 
     try:
         print("Fetching %s" % posts[slug]['post_title'])
@@ -104,6 +109,27 @@ for slug in posts.keys():
         print("Fetching %s" % slug)
 
     post = src_server.wp.getPost(opts.blog_id, opts.username, opts.password, posts[slug]['post_id'])
+
+
+    #Check if post is copyable to target. 
+    #Post is not copyable IFF there is a [copywiki] shortcode but it doesn't have the target wiki 
+    #listed in the destination string. ie To stop copying, add the shortcode and destination string
+    #but omit the target wiki in the destingation string.
+    p=re.compile('\[copywiki (.*?)\]')
+    p_dest=re.compile('destination="(.*)"')
+    m=p.search(post['post_content'])
+    target_wiki=opts.url_dst.split('http://')[-1].split('.')[0].lower()
+
+    if m: #There is a match, so we need to confirm if we can copy
+        m_dest=p_dest.search(m.group(1))
+        if m_dest:
+            valid_targets = m_dest.group(1).lower() #These are valid destinations for copy
+            if target_wiki not in valid_targets:
+                if opts.force:
+                    print "CANT COPY. Target wiki (%s) not in article destination shortcode (%s)" % (target_wiki, m.group()) 
+                continue
+
+
 
     new_post = {}
     for k in new_keys:
