@@ -115,11 +115,7 @@ for slug in posts.keys():
                 print "SKIPPING %s as is up to date" % slug
             continue
 
-    try:
-        print("Fetching %s" % posts[slug]['post_title'])
-    except:
-        print("Fetching %s" % slug)
-
+    #print("Fetching %s" % slug)
     post = src_server.wp.getPost(opts.blog_id, opts.username, opts.password, posts[slug]['post_id'])
 
 
