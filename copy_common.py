@@ -6,6 +6,7 @@ Copying will fail
 * (with announcement) if the target version is newer - but you can force the copy to happen anyway with the --force parameter.
 * (silently) if the source has the [copywiki] shortcode and the target wiki is not in its desination field. The copy will not work 
   even if -force is True, but will emit a reason for failure.
+
 '''
 
 import datetime, xmlrpclib, sys, tempfile
@@ -21,6 +22,7 @@ parser.add_option("--url-dst", help="Destination Wordpress URL", default=None)
 parser.add_option("--slug-prefix", help="slug prefix to look for (editable part of url)", default="common-")
 parser.add_option("--blog-id", help="ID of wiki", default='')
 parser.add_option("--force", action='store_true', help="force update", default=False)
+parser.add_option("--log", action='store_true', help="additional logging", default=False)
 
 (opts, args) = parser.parse_args()
 
@@ -84,12 +86,17 @@ new_keys = ['post_mime_type', 'post_date_gmt', 'sticky', 'post_date',
             'menu_order']
 
 
+
 for slug in posts.keys():
-    if slug in dst_posts and posts[slug]['post_modified'] <= dst_posts[slug]['post_modified'] and not opts.force:
+    if slug not in dst_posts:
+        if opts.log:
+            print("COPYING NEW %s (not in %s)" % (slug,opts.url_dst) )
+    else:
         src_date = datetime.strptime('%s' % posts[slug]['post_modified'], "%Y%m%dT%H:%M:%S")
         dst_date = datetime.strptime('%s' %dst_posts[slug]['post_modified'], "%Y%m%dT%H:%M:%S")
         timedelta = dst_date - src_date
         timemins = timedelta.total_seconds() / 60
+        #
         #print 'src_date_orig: %s' % posts[slug]['post_modified']
         #print 'dst_date_orig: %s' % dst_posts[slug]['post_modified']
         #print 'src_date: %s' % src_date
@@ -98,9 +105,14 @@ for slug in posts.keys():
         #print 'timemins: %s' % timemins
         #print 'repr %s' % repr(timedelta)
 
+        if opts.log:
+            print("Timestamps for (%s: %s). Delta: %s.  Src: %s. Dst: %s.s" % (opts.url_dst, slug, timemins, src_date,dst_date) )
 
-        if timemins > 20:
-            print("Destination is newer for (%s): %s by %s" % (opts.url_dst, slug, timemins) )
+
+        #Dont update docs if have effectvely the same timestamp
+        if abs(timemins)<10 and not opts.force:
+            if opts.log:
+                print "SKIPPING %s as is up to date" % slug
             continue
 
     try:
@@ -159,25 +171,27 @@ for slug in posts.keys():
     # force author to be autotest
     new_post['post_author'] = 'autotest'
 
+
     #debug
     #sys.exit(exit_code)
 
     if slug in dst_posts:
         dst_post = dst_server.wp.getPost(opts.blog_id, opts.username, opts.password, dst_posts[slug]['post_id'])
 
-        if post['post_modified'] <= dst_post['post_modified'] and not opts.force:
-            print("Destination is newer")
-            continue
-
         try:
             print("Uploading existing post: %s" % posts[slug]['post_title'])
         except:
             print("Uploading existing post: %s" % slug)
 
-        #print 'debug - slug is present in both so we over-write'
+        #print 'debug - slug is present in both so overwrite'
         if not dst_server.wp.editPost(opts.blog_id, opts.username, opts.password, dst_posts[slug]['post_id'], new_post):
             print("Failed to update %s" % posts[slug]['post_title'])
             exit_code = 1
+        else:
+            #Write succeded - "touch" source doc to sync last-modified timestamps
+            if not src_server.wp.editPost(opts.blog_id, opts.username, opts.password, posts[slug]['post_id'], post):
+                print("Failed to sync src/target timestamps: %s" % posts[slug]['post_title'])
+
     else:
         try:
             print("Uploading new post: %s" % posts[slug]['post_title'])
@@ -190,7 +204,12 @@ for slug in posts.keys():
                 print("Failed to upload %s" % posts[slug]['post_title'])
             except:
                 print("Failed to upload %s" % slug)
-
             exit_code = 1
+        else:
+            #Write succeded - "touch" source doc to sync last-modified timestamps
+            if not src_server.wp.editPost(opts.blog_id, opts.username, opts.password, posts[slug]['post_id'], post):
+                print("Failed to sync src/target timestamps: %s" % posts[slug]['post_title'])
+
+
 
 sys.exit(exit_code)
