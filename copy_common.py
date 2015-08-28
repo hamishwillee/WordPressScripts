@@ -88,10 +88,7 @@ new_keys = ['post_mime_type', 'post_date_gmt', 'sticky', 'post_date',
 
 
 for slug in posts.keys():
-    if slug not in dst_posts:
-        if opts.log:
-            print("COPYING NEW %s (not in %s)" % (slug,opts.url_dst) )
-    else:
+    if slug in dst_posts:
         src_date = datetime.strptime('%s' % posts[slug]['post_modified'], "%Y%m%dT%H:%M:%S")
         dst_date = datetime.strptime('%s' %dst_posts[slug]['post_modified'], "%Y%m%dT%H:%M:%S")
         timedelta = dst_date - src_date
@@ -106,14 +103,16 @@ for slug in posts.keys():
         #print 'repr %s' % repr(timedelta)
 
         if opts.log:
-            print("Timestamps for (%s: %s). Delta: %s.  Src: %s. Dst: %s.s" % (opts.url_dst, slug, timemins, src_date,dst_date) )
+            #print("Timestamps for (%s: %s). Delta: %s.  Src: %s. Dst: %s" % (opts.url_dst, slug, timemins, src_date,dst_date) )
+            pass
 
-
-        #Dont update docs if have effectvely the same timestamp
-        if abs(timemins)<10 and not opts.force:
+        #Skip if dest newer than src by small amount (1 hour)  
+        if timemins>=0 and timemins <60 and not opts.force:
             if opts.log:
-                print "SKIPPING %s as is up to date" % slug
+                print "SKIPPING as probably up to date: %s (timestamp: %s)" % (slug,timemins)
             continue
+
+
 
     #print("Fetching %s" % slug)
     post = src_server.wp.getPost(opts.blog_id, opts.username, opts.password, posts[slug]['post_id'])
@@ -133,9 +132,22 @@ for slug in posts.keys():
         if m_dest:
             valid_targets = m_dest.group(1).lower() #These are valid destinations for copy
             if target_wiki not in valid_targets:
-                if opts.force:
-                    print "CANT COPY. Target wiki (%s) not in article destination shortcode (%s)" % (target_wiki, m.group()) 
+                if opts.force or opts.log:
+                    print "SKIPPING. Target wiki (%s) not in article destination shortcode (%s)" % (target_wiki, m.group()) 
                 continue
+
+    #If new valid target and logging then print that. 
+    if slug not in dst_posts and opts.log:
+        print("COPYING NEW %s (not in %s)" % (slug,opts.url_dst) )
+
+
+    #Log if we are going to do update. Note, small window for error if dst is updated within our of last src update.
+    if opts.log:
+        if timemins<0:
+            print("Update as src newer (%s: %s): %s" % (opts.url_dst, slug, timemins) )
+        if timemins>60 and opts.log:
+            print("Update as dst much older than src and may have been overwritten (%s: %s): %s" % (opts.url_dst, slug, timemins) )
+
 
 
 
@@ -169,30 +181,31 @@ for slug in posts.keys():
 
 
     #debug
+    #print "DEBUG EXIT"
     #sys.exit(exit_code)
 
     if slug in dst_posts:
         dst_post = dst_server.wp.getPost(opts.blog_id, opts.username, opts.password, dst_posts[slug]['post_id'])
 
         try:
-            print("Uploading existing post: %s" % posts[slug]['post_title'])
+            print("Uploading existing post (%s): %s" % (opts.url_dst,posts[slug]['post_title']) )
         except:
-            print("Uploading existing post: %s" % slug)
+            print("Uploading existing post (%s): %s" % (opts.url_dst,slug) )
 
         #print 'debug - slug is present in both so overwrite'
+        if opts.force or timemins>60:
+            # "touch" source doc. If you dont do this timemins will increase and you will always update older articles every time
+            if not src_server.wp.editPost(opts.blog_id, opts.username, opts.password, posts[slug]['post_id'], post):
+                print("Failed to sync src/target timestamps: %s" % posts[slug]['post_title'])
+        # Then update new article
         if not dst_server.wp.editPost(opts.blog_id, opts.username, opts.password, dst_posts[slug]['post_id'], new_post):
             print("Failed to update %s" % posts[slug]['post_title'])
             exit_code = 1
-        else:
-            #Write succeded - "touch" source doc to sync last-modified timestamps
-            if not src_server.wp.editPost(opts.blog_id, opts.username, opts.password, posts[slug]['post_id'], post):
-                print("Failed to sync src/target timestamps: %s" % posts[slug]['post_title'])
-
     else:
         try:
-            print("Uploading new post: %s" % posts[slug]['post_title'])
+            print("Uploading new post (%s): %s" % (opts.url_dst,posts[slug]['post_title']) )
         except:
-            print("Uploading new post: %s" % slug)
+            print("Uploading new post (%s): %s" % (opts.url_dst,slug) )
 
         print 'debug - slug is not present so is new title'
         if not dst_server.wp.newPost(opts.blog_id, opts.username, opts.password, new_post):
@@ -201,11 +214,6 @@ for slug in posts.keys():
             except:
                 print("Failed to upload %s" % slug)
             exit_code = 1
-        else:
-            #Write succeded - "touch" source doc to sync last-modified timestamps
-            if not src_server.wp.editPost(opts.blog_id, opts.username, opts.password, posts[slug]['post_id'], post):
-                print("Failed to sync src/target timestamps: %s" % posts[slug]['post_title'])
-
 
 
 sys.exit(exit_code)
